@@ -7,178 +7,179 @@ contract createVote{
 
     
     struct Student{//This data will be taken from the student's account, 
-        uint year_coursing;
-        string studentFaculty;
-        uint idStudent; 
-        string studentName;
-        string emailStudent;
-        uint phoneStudent;
+        address addressStudent;
+        bool hasVoted;
+        bool IamReady;
     }
-    struct Exam{
+    struct Exam{//This struct will contain the exam data that students will vote
         string new_examDay;
         string new_examHour;
         uint moedExam;
+        bool createdExam;
+        Student new_Student;
     }
-    struct Course{
+    struct Course{//contains the data of the course thta students are voting.
         uint idCourse;
         uint semesterTeachingCourse;
         string nameCourse;
-        Exam newExamCourse;
     }
-    
+    modifier OnlyOwner{
+        require(msg.sender == owner,"Only the Administrator allowed make this action");
+        _;
+    }
+    modifier OnlyStudent{
+        require(msg.sender != owner,"Only the Student allowed make this action");
+        _;
+    }
 //==========================================GLOBAL VARIABLES==========================================
     address owner;
-    address address_Student;//this is the account student of metamask that every student must to have for make a vote.
-    Student new_Student;//Contains data student
-    bool student_Created = false;
-    Course newCourse;
-    bool createdCourse = false;
-    address[] students_Voted;
-    string[] voting_Dates;
-    bool IamReady = false;
-    bool hasVoted = false;
-    uint ethersContract; //maybe will be quited.
+    Course newCourse;// This is the object Course, save all the information of the course to be voted in it.
+    Exam newDate;//will contain the exam data
+    string[] voting_Dates;//contain the dates given by the Admin. 
+    //address[] studentsHasVoted;//lo lasot
+    mapping(address => bool) studentsHasVoted;//tell us if X student has vote already.
+    mapping (string =>uint) votes;//contains the counters voting for every date
+    uint dateExpiringContract;
+    uint dateCreatedContract;
     
 
 //=======================================================CONSTRUCTOR========================================================
-
-    constructor(string[] memory dates, uint ethContract){
+//The constructor will initialize the data of the course that we select to be voted 
+    constructor(string[] memory dates, uint _idCourse, uint _semesterTeachingCourse, string memory _nameCourse){//THIS IS THE CONSTRUCTOR, the ADMIN give the data
+        require((_idCourse != 0) && (_semesterTeachingCourse != 0) && (bytes(_nameCourse).length != 0), "Please fill all the fields");
         owner = msg.sender;
+        uint num_dates = 0;
+        while(num_dates < dates.length){//This loop put the dates in the array "voting_Dates"
+            voting_Dates.push(dates[num_dates]);//coping the input dates to the array dates 
+            votes[dates[num_dates]] = 0;//creating the map that will save the votes to the different dates
+            num_dates++;
+        }
+        newCourse.idCourse = _idCourse;
+        newCourse.nameCourse = _nameCourse;
+        newCourse.semesterTeachingCourse = _semesterTeachingCourse;
+        dateCreatedContract = block.timestamp;
+        dateExpiringContract = dateCreatedContract + 5 minutes;
+
+    }//["2/22/34","5/22/34","9/22/34"] 100102 hedva2 2
+
+    function getAvaleableDates()public view{//If the student wants to see the available dates 
         uint index = 0;
-        while(index < dates.length){
-            voting_Dates.push(dates[index]);
+        console.log("The available dates are:");
+        while(index < voting_Dates.length){
+            console.log(voting_Dates[index]);
             index++;
         }
-        ethersContract = ethContract;
-    }//["2/22/34","2/22/34","4/22/34"],100
+    }
+
+    function printDataCourse() public view {//this function prints the course to be voted 
+        console.log("The course that you are voting is:");
+        console.log("Name course: %s",newCourse.nameCourse);
+        console.log("Id course: %s", newCourse.idCourse);
+        console.log("Teached in the semester: %s",newCourse.semesterTeachingCourse);
+    }
+
+    function timeForVotingIsOver() private view returns (bool) {//This function tell us if the voting date has finished returning true, otherwise returns false
+        if(block.timestamp > dateExpiringContract)
+            return true;
+        return false;
+    }
+
 
 //=========================================INITIALIZING STUDENT DATA============================
-
-    function createStudent(uint _year_coursing, string memory _studentFaculty, uint _idStudent,
-    string memory _studentName, string memory _emailStudent, uint _phoneStudent) public {
-        require((_year_coursing != 0) && (bytes(_studentFaculty).length != 0) && (_idStudent != 0) &&
-        (bytes(_studentName).length != 0) && (bytes(_emailStudent).length != 0) && (_phoneStudent!=0),"Pease refill all the Student fields");
-        
-        new_Student.year_coursing = _year_coursing;
-        new_Student.studentFaculty = _studentFaculty;
-        new_Student.idStudent = _idStudent;
-        new_Student.studentName = _studentName;
-        new_Student.emailStudent = _emailStudent;
-        new_Student.phoneStudent = _phoneStudent;
-        student_Created = true;
-    }
-
-//=========================================INITIALIZING COURSE DATA============================
-    function createCourse(uint _idCourse,uint _semesterTeachingCourse ,string memory _nameCourse
-    ,string memory _new_examDay, string memory _new_examHour, uint _moedExam) public{
-        require(student_Created == true, "Student data must to be initialized before the filling data Course.");
-        require((_idCourse != 0) && (_semesterTeachingCourse != 0) && (bytes(_nameCourse).length != 0) &&
-        (bytes(_new_examDay).length != 0) && (bytes(_new_examHour).length != 0) && (_moedExam != 0), "ALL the Course data must be initialized\nPlease refill all the fields");
-        
-        bool dateValid = date_Is_Valid(_new_examDay);
-        require(dateValid, "Dear Student, please just type one of the given dates.");
-
-        newCourse.idCourse = _idCourse;
-        newCourse.semesterTeachingCourse = _semesterTeachingCourse;
-        newCourse.nameCourse = _nameCourse;
-        newCourse.newExamCourse = createExam(_new_examDay, _new_examHour, _moedExam);
-        createdCourse = true;
-    }
-    function getIdCourse() public view returns(uint){
-        return newCourse.idCourse;
-    }
-    function getSemesterTeachingCourse() public view returns(uint){
-        return newCourse.semesterTeachingCourse;
-    }
-    function getNameCourse() public view returns(string memory){
-        return newCourse.nameCourse;
-    }
-    function getExam()public view returns(Exam memory) {
-        return newCourse.newExamCourse;
-    }
-    function setIdCourse(uint newIdCourse)public {
-        require(newIdCourse != 0,"Please input a course number.");
-        newCourse.idCourse = newIdCourse;
-    }
-    function setSemesterTeachingCourse(uint newSemester)public {
-        require(newSemester != 0,"Please input a semester number.");
-        newCourse.semesterTeachingCourse = newSemester;
-    }
-    function setNameCourse(string memory newNameCourse)public {
-        require(bytes(newNameCourse).length != 0,"Please enter a name Exam");
-        newCourse.nameCourse = newNameCourse;
+//The data will be gotten from the account Usuary 
+    function createStudent() private OnlyStudent{//This is the constructor Student.
+        //Checking if all the data was enter, if not will get an error. 
+        //The usuary must to have in his account all the next data: 
+        newDate.new_Student.addressStudent = msg.sender;
+        newDate.new_Student.hasVoted = false;
+        newDate.new_Student.IamReady = false;
+        studentsHasVoted[msg.sender] = false;
     }
 
 //=========================================INITIALIZING EXAM DATA============================
-    function createExam(string memory _new_examDay, string memory _new_examHour, uint _moedExam) internal pure returns (Exam memory){
-        Exam memory createdExam;
-        createdExam.new_examDay = _new_examDay;
-        createdExam.new_examHour = _new_examHour;
-        createdExam.moedExam = _moedExam;
-        return createdExam;
+    function createExam(string memory _new_examDay, string memory _new_examHour, uint _moedExam) public OnlyStudent{//This is the constructor Exam, just the student allowed call this function. 
+        require(!timeForVotingIsOver(),"SORRY, The time for voting it's over. Please contact with the Administrator Exams");
+        require(!studentVoted(msg.sender),"Sorry the vote can't be issued because the student has voted already.");
+        require((bytes(_new_examDay).length != 0) && (bytes(_new_examHour).length != 0) && (_moedExam != 0), "ALL the Course data must be initialized\nPlease refill all the fields");
+        bool dateValid = date_Is_Valid(_new_examDay);//checking id the put in date is correct
+        require(dateValid, "Dear Student, please just type one of the given dates in the same format, otherwise you will not be able to issue a vote.");
+        newDate.createdExam = true;
+        
+        createStudent();//creating the object student
+        //filling the Exam data.
+        newDate.new_examDay = _new_examDay;
+        newDate.new_examHour = _new_examHour;
+        newDate.moedExam = _moedExam;
+    }
+    function getStudentAddress()public view returns(address){
+        return newDate.new_Student.addressStudent;
+    }
+    function getHasVoted()public view returns(bool) {
+        return newDate.new_Student.hasVoted;
     }
     function getExamDay() public view returns(string memory) {
-        return newCourse.newExamCourse.new_examDay;
+        return newDate.new_examDay;
     }
     function getExamHour()public view returns(string memory) {
-        return newCourse.newExamCourse.new_examHour;
+        return newDate.new_examHour;
     }
     function getMoedExam()public view returns(uint){
-        return newCourse.newExamCourse.moedExam;
+        return newDate.moedExam;
     }
     function setExamDay(string memory _ExamDay)public {
+        require(!timeForVotingIsOver(),"SORRY, The time for voting it's over. Please contact with the Administrator Exams");
+        require(!studentVoted(msg.sender),"Sorry the vote can't be issued because the student has voted already.");
         require(bytes(_ExamDay).length != 0,"Please enter a new Exam Day");
-        newCourse.newExamCourse.new_examDay = _ExamDay;
+        bool dateValid = date_Is_Valid(_ExamDay);//checking id the put in date is correct
+        require(dateValid, "Dear Student, please just type one of the given dates in the same format, otherwise you will not be able to issue a vote.");
+
+        newDate.new_examDay = _ExamDay;
     }
     function SetExamHour(string memory newHour) public {
+        require(!timeForVotingIsOver(),"SORRY, The time for voting it's over. Please contact with the Administrator Exams");
+        require(!studentVoted(msg.sender),"Sorry the vote can't be issued because the student has voted already.");
         require(bytes(newHour).length != 0,"Please enter an new hour Exam");
-        newCourse.newExamCourse.new_examHour = newHour;
+        newDate.new_examHour = newHour;
     }
     function setMoedExam(uint _moedExam)public {
+        require(!timeForVotingIsOver(),"SORRY, The time for voting it's over. Please contact with the Administrator Exams");
+        require(!studentVoted(msg.sender),"Sorry the vote can't be issued because the student has voted already.");
         require(_moedExam != 0,"Please input a moed Exam number.");
-        newCourse.newExamCourse.moedExam = _moedExam;
+        newDate.moedExam = _moedExam;
     }
-/////////////////////////////////////////////////////////SYSTEM FUNCTIONS////////////////////////////////////////////////////////
-    function printVotingData()public view{
-        console.log("Student year coursing: %s", new_Student.year_coursing);
-        console.log("Student faculty: %s",new_Student.studentFaculty);
-        console.log("Student id: %s",new_Student.idStudent);
-        console.log("Student name: %s", new_Student.studentName);
-        console.log("Student email: %s", new_Student.emailStudent);
-        console.log("Student number phone: %s\n",new_Student.phoneStudent);
-        console.log("The next data is the course what the student will votes:");
-        console.log("Course id: %s",newCourse.idCourse);
-        console.log("Taeching course semester: %s",newCourse.semesterTeachingCourse);
-        console.log("Course name: %s\n",newCourse.nameCourse);
-        console.log("This is the new exam date selected: ");
-        console.log("Exam day: %s",newCourse.newExamCourse.new_examDay);
-        console.log("Exam hour: %s", newCourse.newExamCourse.new_examHour);
-        console.log("Exam moed: %s",newCourse.newExamCourse.moedExam);  
+    function setHasVoted() private {//tell us if the student made a vote already
+        newDate.new_Student.hasVoted = true;
+    }
+    
+    function setIamReady() public {//if the student is ready to issue a vote we set to is ready.
+        newDate.new_Student.IamReady = true;
     }
 
-    function issuing_Vote()public payable{
-
-        require(student_Created,"Please fill the fields Student data before issue a vote.");
-        require(createdCourse,"Please fill the fields Course data before issue a vote.");
+/////////////////////////////////////////////////////////ISSUING THE VOTE////////////////////////////////////////////////////////
+    
+    function issuing_Vote() public OnlyStudent{//this function make the vote. Just the student can to call this function.
         
-        if(!IamReady){
+        require(!timeForVotingIsOver(),"SORRY, The time for voting it's over. Please contact with the Administrator Exams");
+        require(!newDate.new_Student.hasVoted,"Sorry the vote can't be issued because the student has voted already.");
+        require(newDate.createdExam,"Please indicate what is your preferent date to change the Exam before issue a vote.");
+        
+        if(!newDate.new_Student.IamReady){//before to make the vote, we make sure that the input data is rigth.
             console.log("Please make sure the input data is correct before issue the vote.");
             printVotingData();
             console.log("WARNING: If the data typed its incorrect, please change it before to make the voting, otherwise push on 'I am raedy'.");     
         }
-        else{
+        else{//After we are sure that the data is right so we can issue the vote.
             console.log("The data to be loaded to the blockchain is:");
-            printVotingData();
-            students_Voted.push(msg.sender);//this line add a new voter Student in the system.
-            printArray(0);//=====================================================
-            require(msg.value == ethersContract);
+            printVotingData();//we print the final data
+            votes[this.getExamDay()] +=1;//adding a new voter to the voted date.
+            setHasVoted();
+            studentsHasVoted[newDate.new_Student.addressStudent] = true;
             console.log("Thanks for voting.\nThe answer about you request will be given by the Azrieli's Administration.");
         }
     }
-    function setIamReady()public {
-        IamReady = true;
-    }
-    function date_Is_Valid(string memory date) private view returns(bool){
+
+    function date_Is_Valid(string memory date) private view returns(bool){//returns true if the date put in
+    //by the student is correct (is one among the dates given by the ADMIN), otherwise returns false
         uint index = 0;
         while(index < voting_Dates.length){
             if( keccak256(bytes(voting_Dates[index])) == keccak256(bytes(date)))
@@ -186,24 +187,33 @@ contract createVote{
             index++;
         }return false;
     } 
-//=============================================SOS FUNCTIONS===================================
-    function printArray(uint typeArr)public view{//typeArr = 0 prints students_Voted array, otherwise voting_Dates array
-        uint index = 0;
-        if(typeArr == 0){
-            while(index < students_Voted.length){
-            console.log("THE DATA IN ARRAY: %s",students_Voted[index]);
-            index++;
-            }
-        }
-        else{
-             while(index < voting_Dates.length){
-                console.log("THE DATA IN ARRAY: %s",voting_Dates[index]);
-                index++;
-            }
-        }
-       
+//
+    function printVotingData()public view{//print the data put in for issue the vote
+        console.log("The course you are voting for it is:");
+        console.log("Course id: %s",newCourse.idCourse);
+        console.log("Course name: %s\n",newCourse.nameCourse);
+        console.log("Teaching course semester: %s",newCourse.semesterTeachingCourse);
+        console.log("The new exam date that you selected: ");
+        console.log("Exam day: %s",newDate.new_examDay);
+        console.log("Exam hour: %s", newDate.new_examHour);
+        console.log("Exam moed: %s",newDate.moedExam);  
     }
+
+    function studentVoted(address currStudent) private view returns(bool) {
+        return studentsHasVoted[currStudent];
+    }
+
+//=============================================SOS FUNCTIONS===================================
     
+    function printArrayStudentsVoted()public view OnlyOwner{//prints how many voters voted to every date 
+        uint index = 0;
+        while(index < voting_Dates.length){
+            console.log("THE DATE IS: %s",voting_Dates[index]);
+            console.log("AND THE NUMBER STUDENTS VOTED TO THIS DATE: %s",votes[voting_Dates[index]]);
+            index++;
+            
+        }
+    }
 }
 
 //============================================================================
@@ -212,5 +222,9 @@ contract createVote{
         return (new_Student.year_coursing,new_Student.studentFaculty,new_Student.idStudent,new_Student.studentName
         ,new_Student.emailStudent,new_Student.phoneStudent);
     }
+
+    function timestampToDateTime(uint timestamp) public pure returns (uint year, uint month, uint day, uint hour, uint minute, uint second)
+https://github.com/RollaProject/solidity-datetime#timestamptodatetime
+    
 
  */
